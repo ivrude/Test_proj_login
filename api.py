@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import HTMLResponse
+from fastapi.responses import RedirectResponse
 
 from database import Base, engine, SessionLocal
 from models import User
@@ -36,7 +37,6 @@ def get_db():
 
 @app.post("/register")
 def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Перевірка чи є користувач
     existing = db.query(User).filter(User.email == user.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -62,7 +62,7 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 
 @app.get("/login/google")
 async def login_google(request: Request):
-    redirect_uri = "http://127.0.0.1:8000/auth/google"
+    redirect_uri = "http://127.0.0.1:8001/auth/google"
     print("DEBUG redirect_uri:", redirect_uri)
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
@@ -75,8 +75,15 @@ async def auth_google(request: Request):
         token=token
     )
     user_info = resp.json()
+    django_url = (
+        "http://127.0.0.1:8000/auth/login/from_fastapi?"
+        f"email={user_info['email']}&"
+        f"name={user_info.get('name', '')}&"
+        f"picture={user_info.get('picture', '')}&"
+        f"sub={user_info.get('sub', '')}"
+    )
 
-
+    return RedirectResponse(django_url)
     db = SessionLocal()
     user = db.query(User).filter(User.email == user_info["email"]).first()
     if not user:
